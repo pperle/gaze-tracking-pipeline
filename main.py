@@ -495,6 +495,8 @@ face_model = np.asarray([face_model_all[i] for i in landmarks_ids])
 
 WINDOW_NAME = 'laser pointer preview'
 
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
 
 def main(calibration_matrix_path: str, monitor_mm=None, monitor_pixels=None, model=None, visualize_preprocessing=False, visualize_laser_pointer=True, visualize_3d=False):
     # setup webcam
@@ -574,10 +576,10 @@ def main(calibration_matrix_path: str, monitor_mm=None, monitor_pixels=None, mod
                 cv2.imshow('img_warped_right_eye', cv2.cvtColor(img_warped_right_eye, cv2.COLOR_RGB2BGR))
                 cv2.imshow('img_warped_face', cv2.cvtColor(img_warped_face, cv2.COLOR_RGB2BGR))
 
-            person_idx = torch.Tensor([0]).unsqueeze(0).long().cuda()  # TODO adapt this depending on the loaded model
-            full_face_image = transform(image=img_warped_face)["image"].unsqueeze(0).float().cuda()
-            left_eye_image = transform(image=img_warped_left_eye)["image"].unsqueeze(0).float().cuda()
-            right_eye_image = transform(image=img_warped_right_eye)["image"].unsqueeze(0).float().cuda()
+            person_idx = torch.Tensor([0]).unsqueeze(0).long().to(device)  # TODO adapt this depending on the loaded model
+            full_face_image = transform(image=img_warped_face)["image"].unsqueeze(0).float().to(device)
+            left_eye_image = transform(image=img_warped_left_eye)["image"].unsqueeze(0).float().to(device)
+            right_eye_image = transform(image=img_warped_right_eye)["image"].unsqueeze(0).float().to(device)
 
             # prediction
             output = model(person_idx, full_face_image, right_eye_image, left_eye_image).squeeze(0).detach().cpu().numpy()
@@ -592,7 +594,7 @@ def main(calibration_matrix_path: str, monitor_mm=None, monitor_pixels=None, mod
             point_on_screen = get_point_on_screen(monitor_mm, monitor_pixels, result)
 
             if visualize_laser_pointer:
-                display = np.ones((1440, 3440, 3), np.float32)
+                display = np.ones((monitor_pixels[1], monitor_pixels[0], 3), np.float32)
 
                 gaze_points.appendleft(point_on_screen)
 
@@ -631,10 +633,7 @@ if __name__ == '__main__':
     if args.monitor_pixels is not None:
         args.monitor_pixels = tuple(map(int, args.monitor_pixels.split(',')))
 
-    model = Model.load_from_checkpoint(args.model_path).cuda()
+    model = Model.load_from_checkpoint(args.model_path).to(device)
     model.eval()
-
-    args.monitor_mm = [800, 335]
-    args.monitor_pixels = [3440, 1440]
 
     main(args.calibration_matrix_path, args.monitor_mm, args.monitor_pixels, model, args.visualize_preprocessing, args.visualize_laser_pointer, args.visualize_3d)
